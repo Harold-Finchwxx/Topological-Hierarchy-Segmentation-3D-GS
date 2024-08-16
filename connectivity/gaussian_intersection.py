@@ -116,7 +116,7 @@ class IntersectionGraph:
         self._features_dc = torch.tensor(features_dc, dtype=torch.float)
         self._features_rest = torch.tensor(features_extra, dtype=torch.float)
         self._opacity = torch.tensor(opacities, dtype=torch.float)
-        self._scaling = torch.tensor(features_dc, dtype=torch.float)
+        self._scaling = torch.tensor(scales, dtype=torch.float)
         self._rotation = torch.tensor(scales, dtype=torch.float)
 
         self.active_sh_degree = self.max_sh_degree
