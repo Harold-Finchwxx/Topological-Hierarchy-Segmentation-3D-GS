@@ -130,7 +130,7 @@ class IntersectionGraph:
 
         for target_idx in range(0, self._xyz.shape[0]):
             target_xyz = self._xyz[target_idx]
-            space_truncate_mask = torch.where(torch.abs(self._xyz - target_xyz) < max_scale, a, b)
+            space_truncate_mask = torch.where(torch.abs(self._xyz - target_xyz) < 2 * max_scale, a, b)
             space_candidates = [idx for idx in range(0, self._xyz.shape[0]) if space_truncate_mask[idx] == [1, 1, 1]]
             space_candidates.remove(target_idx)
             target_sigma = build_covariance_from_scaling_rotation(scaling[target_idx], self._rotation[target_idx])
