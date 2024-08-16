@@ -77,6 +77,22 @@ class IntersectionGraph:
         self._rotation = torch.empty(0)
         self.setup_functions()
         self.max_neighbor_num = max_neighbor_num
+        
+
+    def construct_list_of_attributes(self):
+        l = ['x', 'y', 'z', 'nx', 'ny', 'nz']
+        # All channels except the 3 DC
+        for i in range(self._features_dc.shape[1]*self._features_dc.shape[2]):
+            l.append('f_dc_{}'.format(i))
+        for i in range(self._features_rest.shape[1]*self._features_rest.shape[2]):
+            l.append('f_rest_{}'.format(i))
+        l.append('opacity')
+        for i in range(self._scaling.shape[1]):
+            l.append('scale_{}'.format(i))
+        for i in range(self._rotation.shape[1]):
+            l.append('rot_{}'.format(i))
+        return l
+
 
     def load_ply(self, path):
         plydata = PlyData.read(path)

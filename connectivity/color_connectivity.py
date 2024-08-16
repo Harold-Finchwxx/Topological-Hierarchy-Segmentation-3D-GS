@@ -36,7 +36,7 @@ class ColorConnectGraph:
 
             color_connect[target_idx][:len(color_neighbors)] = torch.tensor(color_neighbors)
 
-        self.color_connect_graph = torch.tensor(true_neighbors)
+        self.color_connect_graph = torch.tensor(color_connect)
 
         return color_connect
 
