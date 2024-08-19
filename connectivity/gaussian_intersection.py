@@ -158,7 +158,7 @@ class IntersectionGraph:
             target_sigma = build_covariance_from_scaling_rotation(scaling[target_idx], self._rotation[target_idx])
             intersec_candidates = []
 
-            for candidate in space_candidates:
+            for candidate in tqdm(space_candidates, desc="Inner Loop"):
                 canditate_xyz = self._xyz[candidate]
                 candidate_sigma = build_covariance_from_scaling_rotation(scaling[candidate], self._rotation[candidate])
                 intersect_metric = compute_normalization_constant(target_xyz, target_sigma, canditate_xyz, candidate_sigma)
