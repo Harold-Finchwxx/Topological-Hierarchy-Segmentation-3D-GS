@@ -12,10 +12,13 @@ from utils.general_utils import strip_symmetric, build_scaling_rotation
 from scene.gaussian_model import GaussianModel
 
 
-def get_max_min_scale(scales):
-    return [scales.max(), scales.min()]
+def get_max_scale(scales):
+    return scales.max()
 
 def build_covariance_from_scaling_rotation(scaling, rotation, scaling_modifier=1):
+        if rotation.dim() == 1:
+            rotation = rotation.unsqueeze(0)
+
         L = build_scaling_rotation(scaling_modifier * scaling, rotation)
         actual_covariance = L @ L.transpose(1, 2)
         return actual_covariance
@@ -67,7 +70,7 @@ class IntersectionGraph:
         self.rotation_activation = torch.nn.functional.normalize
 
 
-    def __init__(self, sh_degree : int, max_neighbor_num: int):
+    def __init__(self, sh_degree: int =3, max_neighbor_num: int =10):
         self.active_sh_degree = 0
         self.max_sh_degree = sh_degree  
         self._xyz = torch.empty(0)
@@ -133,43 +136,40 @@ class IntersectionGraph:
         self._features_rest = torch.tensor(features_extra, dtype=torch.float)
         self._opacity = torch.tensor(opacities, dtype=torch.float)
         self._scaling = torch.tensor(scales, dtype=torch.float)
-        self._rotation = torch.tensor(scales, dtype=torch.float)
+        self._rotation = torch.tensor(rots, dtype=torch.float)
 
         self.active_sh_degree = self.max_sh_degree
 
     def get_connect_graph(self, threshold=1e-6):
         K_neighbors = np.full((self._xyz.shape[0], self.max_neighbor_num), np.nan, dtype=int)
-        max_scale = torch.exp(get_max_min_scale(self._scaling))[0]
-        a = torch.ones(self._xyz.shape[0])
-        b = torch.zeros(self._xyz.shape[0])
+        max_scale = torch.exp(get_max_scale(self._scaling))
         scaling = torch.exp(self._scaling)
 
         for target_idx in range(0, self._xyz.shape[0]):
             target_xyz = self._xyz[target_idx]
-            space_truncate_mask = torch.where(torch.abs(self._xyz - target_xyz) < 2 * max_scale, a, b)
-            space_candidates = [idx for idx in range(0, self._xyz.shape[0]) if space_truncate_mask[idx] == [1, 1, 1]]
+            space_truncate_mask = torch.all(torch.abs(self._xyz - target_xyz) < 2 * max_scale, dim=1)
+            space_candidates = torch.nonzero(space_truncate_mask).squeeze().tolist()
             space_candidates.remove(target_idx)
+
             target_sigma = build_covariance_from_scaling_rotation(scaling[target_idx], self._rotation[target_idx])
             intersec_candidates = []
 
             for candidate in space_candidates:
                 canditate_xyz = self._xyz[candidate]
                 candidate_sigma = build_covariance_from_scaling_rotation(scaling[candidate], self._rotation[candidate])
-                intersect_metric = compute_normalization_constant(target_xyz,target_sigma,canditate_xyz,candidate_sigma)
+                intersect_metric = compute_normalization_constant(target_xyz, target_sigma, canditate_xyz, candidate_sigma)
                 if intersect_metric > threshold:
                     intersec_candidates.append([candidate, intersect_metric])
 
-            if len(intersec_candidates) <= self.max_neighbor_num:
+        if len(intersec_candidates) <= self.max_neighbor_num:
+            K_neighbors[target_idx][:len(intersec_candidates)] = [c[0] for c in intersec_candidates]
+        else:
+            intersec_candidates.sort(key=lambda x: x[1], reverse=True)
+            K_neighbors[target_idx] = [c[0] for c in intersec_candidates[:self.max_neighbor_num]]
 
-                K_neighbors[target_idx][:len(intersec_candidates)] = intersec_candidates[:, 0]
-
-            else:
-                intersec_candidates.sort(key= lambda x: x[1], reverse=True)
-                K_neighbors[target_idx] = intersec_candidates[:self.max_neighbor_num, 0]
-        
         self.K_neighbors = torch.tensor(K_neighbors, dtype=int)
-        
         return K_neighbors
+
 
 
         
