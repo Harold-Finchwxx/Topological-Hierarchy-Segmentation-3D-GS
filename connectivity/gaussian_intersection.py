@@ -10,8 +10,8 @@ from simple_knn._C import distCUDA2
 from utils.graphics_utils import BasicPointCloud
 from utils.general_utils import strip_symmetric, build_scaling_rotation
 from scene.gaussian_model import GaussianModel
-import tqdm
-
+from tqdm import tqdm
+import math
 
 def get_max_scale(scales):
     return scales.max()
@@ -151,10 +151,13 @@ class IntersectionGraph:
 
         for target_idx in tqdm(range(0, self._xyz.shape[0]), desc="Outter Loop of space intersection"):
             target_xyz = self._xyz[target_idx]
-            space_truncate_mask = torch.all(torch.abs(self._xyz - target_xyz) < 2 * max_scale, dim=1)
+            distance_to_target = torch.norm(self._xyz - target_xyz, dim=1, keepdim=False)
+            space_truncate_mask = (distance_to_target <= torch.exp(self._scaling[target_idx]).max())
             space_candidates = torch.nonzero(space_truncate_mask).squeeze().tolist()
+            if isinstance(space_candidates, int):
+                space_candidates = [space_candidates]
             space_candidates.remove(target_idx)
-
+            '''
             target_sigma = build_covariance_from_scaling_rotation(scaling[target_idx], self._rotation[target_idx])
             intersec_candidates = []
 
@@ -170,6 +173,12 @@ class IntersectionGraph:
             else:
                 intersec_candidates.sort(key=lambda x: x[1], reverse=True)
                 K_neighbors[target_idx] = [c[0] for c in intersec_candidates[:self.max_neighbor_num]]
+            '''
+            if len(space_candidates) <= self.max_neighbor_num:
+                K_neighbors[target_idx][:len(space_candidates)] = [c for c in space_candidates]
+            else:
+                space_candidates.sort(key=lambda x: distance_to_target[x])
+                K_neighbors[target_idx] = [c for c in space_candidates[:self.max_neighbor_num]]
 
         self.K_neighbors = torch.tensor(K_neighbors, dtype=int)
         return K_neighbors

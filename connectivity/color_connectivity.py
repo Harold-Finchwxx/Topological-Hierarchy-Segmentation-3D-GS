@@ -11,7 +11,7 @@ from utils.graphics_utils import BasicPointCloud
 from utils.general_utils import strip_symmetric, build_scaling_rotation
 from scene.gaussian_model import GaussianModel
 from connectivity.gaussian_intersection import IntersectionGraph
-import tqdm
+from tqdm import tqdm
 
 
 class ColorConnectGraph:
