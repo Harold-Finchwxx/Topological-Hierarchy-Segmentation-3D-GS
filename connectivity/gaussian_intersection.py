@@ -149,7 +149,7 @@ class IntersectionGraph:
         max_scale = torch.exp(get_max_scale(self._scaling))
         scaling = torch.exp(self._scaling)
 
-        for target_idx in tqdm(range(0, self._xyz.shape[0]), desc="Out Loop"):
+        for target_idx in tqdm(range(0, self._xyz.shape[0]), desc="Outter Loop of space intersection"):
             target_xyz = self._xyz[target_idx]
             space_truncate_mask = torch.all(torch.abs(self._xyz - target_xyz) < 2 * max_scale, dim=1)
             space_candidates = torch.nonzero(space_truncate_mask).squeeze().tolist()

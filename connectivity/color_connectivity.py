@@ -11,6 +11,7 @@ from utils.graphics_utils import BasicPointCloud
 from utils.general_utils import strip_symmetric, build_scaling_rotation
 from scene.gaussian_model import GaussianModel
 from connectivity.gaussian_intersection import IntersectionGraph
+import tqdm
 
 
 class ColorConnectGraph:
@@ -22,7 +23,7 @@ class ColorConnectGraph:
         
         color_connect = torch.full_like((space_connect_graph.K_neighbors), -2)
 
-        for target_idx in range(0, space_connect_graph.shape[0]):
+        for target_idx in tqdm(range(0, space_connect_graph.shape[0]), desc="Processing of color connect"):
             true_neighbors=[neighbor for neighbor in space_connect_graph.K_neighbors[target_idx] if neighbor>=0]
             target_sh_dc = space_connect_graph._features_dc[target_idx]
             neighbor_sh_dc = space_connect_graph._features_dc[true_neighbors]
