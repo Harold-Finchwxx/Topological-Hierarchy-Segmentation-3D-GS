@@ -10,6 +10,7 @@ from simple_knn._C import distCUDA2
 from utils.graphics_utils import BasicPointCloud
 from utils.general_utils import strip_symmetric, build_scaling_rotation
 from scene.gaussian_model import GaussianModel
+import tqdm
 
 
 def get_max_scale(scales):
@@ -19,6 +20,9 @@ def build_covariance_from_scaling_rotation(scaling, rotation, scaling_modifier=1
         if rotation.dim() == 1:
             rotation = rotation.unsqueeze(0)
 
+        if scaling.dim() == 1:
+            scaling = scaling.unsqueeze(0)
+
         L = build_scaling_rotation(scaling_modifier * scaling, rotation)
         actual_covariance = L @ L.transpose(1, 2)
         return actual_covariance
@@ -26,25 +30,25 @@ def build_covariance_from_scaling_rotation(scaling, rotation, scaling_modifier=1
 
 def compute_normalization_constant(mu1, Sigma1, mu2, Sigma2):
     # Convert inputs to torch tensors if they are not already
-    mu1 = torch.tensor(mu1, dtype=torch.float32)
-    Sigma1 = torch.tensor(Sigma1, dtype=torch.float32)
-    mu2 = torch.tensor(mu2, dtype=torch.float32)
-    Sigma2 = torch.tensor(Sigma2, dtype=torch.float32)
+    mean1 = torch.tensor(mu1, dtype=torch.float32).clone().cuda()
+    sigma1 = torch.tensor(Sigma1, dtype=torch.float32).clone().cuda()
+    mean2 = torch.tensor(mu2, dtype=torch.float32).clone().cuda()
+    sigma2 = torch.tensor(Sigma2, dtype=torch.float32).clone().cuda()
 
     # Compute the inverses of the covariance matrices
-    inv_Sigma1 = torch.inverse(Sigma1)
-    inv_Sigma2 = torch.inverse(Sigma2)
+    inv_Sigma1 = torch.inverse(sigma1).cuda()
+    inv_Sigma2 = torch.inverse(sigma2).cuda()
     
     # Compute the new covariance matrix (Sigma)
-    Sigma = torch.inverse(inv_Sigma1 + inv_Sigma2)
+    Sigma = torch.inverse(inv_Sigma1 + inv_Sigma2).cuda()
     
     # Compute the mean difference vector
-    m = mu1 - mu2
+    m = mean1 - mean2
     
     # Compute the normalization constant
-    dim = len(mu1)  # Dimension (3 in this case)
+    dim = len(mean1)  # Dimension (3 in this case)
     normalization_constant = (2 * torch.pi)**(-dim / 2) * torch.sqrt(torch.det(Sigma)) * \
-                             torch.exp(-0.5 * m.T @ torch.inverse(Sigma1 + Sigma2) @ m)
+                             torch.exp(-0.5 * m.T @ torch.inverse(sigma1 + sigma2) @ m)
     
     return normalization_constant.item()
 
@@ -145,7 +149,7 @@ class IntersectionGraph:
         max_scale = torch.exp(get_max_scale(self._scaling))
         scaling = torch.exp(self._scaling)
 
-        for target_idx in range(0, self._xyz.shape[0]):
+        for target_idx in tqdm(range(0, self._xyz.shape[0]), desc="Out Loop"):
             target_xyz = self._xyz[target_idx]
             space_truncate_mask = torch.all(torch.abs(self._xyz - target_xyz) < 2 * max_scale, dim=1)
             space_candidates = torch.nonzero(space_truncate_mask).squeeze().tolist()
@@ -161,11 +165,11 @@ class IntersectionGraph:
                 if intersect_metric > threshold:
                     intersec_candidates.append([candidate, intersect_metric])
 
-        if len(intersec_candidates) <= self.max_neighbor_num:
-            K_neighbors[target_idx][:len(intersec_candidates)] = [c[0] for c in intersec_candidates]
-        else:
-            intersec_candidates.sort(key=lambda x: x[1], reverse=True)
-            K_neighbors[target_idx] = [c[0] for c in intersec_candidates[:self.max_neighbor_num]]
+            if len(intersec_candidates) <= self.max_neighbor_num:
+                K_neighbors[target_idx][:len(intersec_candidates)] = [c[0] for c in intersec_candidates]
+            else:
+                intersec_candidates.sort(key=lambda x: x[1], reverse=True)
+                K_neighbors[target_idx] = [c[0] for c in intersec_candidates[:self.max_neighbor_num]]
 
         self.K_neighbors = torch.tensor(K_neighbors, dtype=int)
         return K_neighbors
