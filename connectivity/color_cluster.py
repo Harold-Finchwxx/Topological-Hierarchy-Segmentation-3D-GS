@@ -54,11 +54,20 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
     intergraph = IntersectionGraph(max_neighbor_num=max_neighbor_num)
     intergraph.load_ply(inputpath)
     intergraph.get_connect_graph(threshold=intersect_threshold)
+    neighbor_tensor_filename = "space_neighbors.pt"
+    space_neighbor_tensor_path = os.path.join(outputpath, neighbor_tensor_filename)
+    torch.save(intergraph.K_neighbors,space_neighbor_tensor_path)
 
     color_connect = ColorConnectGraph()
     color_connect_graph = color_connect.get_scene_color_connect(intergraph, rgb_truncate=rgb_truncate_threshold)
+    color_connect_filename = "color_neighbors.pt"
+    color_connect_tensor_path = os.path.join(outputpath, color_connect_filename)
+    torch.save(color_connect_graph, color_connect_tensor_path)
 
     color_clusters = get_color_clusters(color_connect_graph)
+    color_cluster_filename = "color_clusters.pt"
+    color_cluster_list_path = os.path.join(outputpath, color_cluster_filename)
+    torch.save(color_clusters, color_cluster_list_path)
 
     rgb_assign = torch.arange(0, 255*3, 255*3/len(color_clusters))
     rgb_label = torch.zeros((len(color_clusters), 3, 1))
