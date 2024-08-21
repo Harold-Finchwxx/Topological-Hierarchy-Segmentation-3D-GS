@@ -21,7 +21,7 @@ class ColorConnectGraph:
 
     def get_scene_color_connect(self, space_connect_graph: IntersectionGraph, rgb_truncate=15):
         
-        color_connect = torch.full_like((space_connect_graph.K_neighbors), -2)
+        color_connect = torch.full_like((space_connect_graph.K_neighbors), -2, dtype=int)
 
         for target_idx in tqdm(range(0, space_connect_graph.K_neighbors.shape[0]), desc="Processing of color connect"):
             true_neighbors=[neighbor for neighbor in space_connect_graph.K_neighbors[target_idx] if neighbor>=0]
@@ -37,7 +37,7 @@ class ColorConnectGraph:
 
             color_connect[target_idx][:len(color_neighbors)] = torch.tensor(color_neighbors)
 
-        self.color_connect_graph = torch.tensor(color_connect)
+        self.color_connect_graph = torch.tensor(color_connect, dtype=int).clone().detach()
 
         return color_connect
 

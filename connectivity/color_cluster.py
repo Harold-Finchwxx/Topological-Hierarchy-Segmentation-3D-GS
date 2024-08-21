@@ -1,4 +1,5 @@
 import torch
+from torch import Tensor
 import numpy as np
 from utils.general_utils import inverse_sigmoid, get_expon_lr_func, build_rotation
 from torch import nn
@@ -18,11 +19,12 @@ import sys
 
 def dfs(graph, node, visited):
     visited.add(node)
-    for neighbor in graph[node] and neighbor >= 0:
-        if neighbor not in visited:
-            dfs(graph, neighbor, visited)
+    for neighbor in graph[node, :]:
+        if neighbor>=0 and neighbor not in visited:
+            dfs(graph, int(neighbor.item()), visited)
 
-def find_connected_components(graph):
+'''
+def find_connected_components(graph) -> list:
     visited = set()
     components = []
     
@@ -34,13 +36,14 @@ def find_connected_components(graph):
             visited.update(component)
     
     return components
+'''
 
-def get_color_clusters(ccgraph: ColorConnectGraph):
+def get_color_clusters(ccgraph: Tensor) -> list:
     
     visited = set()
     components = []
     
-    for node in range(0, ccgraph):
+    for node in range(0, ccgraph.shape[0]):
         if node not in visited:
             component = set()
             dfs(ccgraph, node, component)
@@ -50,8 +53,27 @@ def get_color_clusters(ccgraph: ColorConnectGraph):
     return components
     
 def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, intersect_threshold=1e-6, max_neighbor_num=10):
+    
+    print("=" * 25 + "Testing Input and Ouput Path" + "=" *25)
 
-    os.makedirs(outputpath, exist_ok=True)
+    if os.path.exists(inputpath):
+        print("Valid input path")
+    else:
+        print("Invalid input path")
+        raise SystemExit()
+    
+    if os.path.exists(outputpath):
+        print("Valid output path")
+    else:
+        print("output path does not exist")
+        os.makedirs(outputpath)
+        print("But a new output diractory is established of this")
+    
+    print("=" * 25 + "Input and Ouput Path Tested" + "=" *25)
+
+    print('\n')
+
+    print("=" * 25 + "Establishing Space Connectivity Graph" + "=" *25)
 
     intergraph = IntersectionGraph(max_neighbor_num=max_neighbor_num)
     intergraph.load_ply(inputpath)
@@ -60,11 +82,23 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
     space_neighbor_tensor_path = os.path.join(outputpath, neighbor_tensor_filename)
     torch.save(intergraph.K_neighbors,space_neighbor_tensor_path)
 
+    print("=" * 25 + "Space Connectivity Graph Saved" + "=" *25)
+
+    print('\n')
+
+    print("=" * 25 + "Establishing Color Connectivity Graph" + "=" *25)
+
     color_connect = ColorConnectGraph()
     color_connect_graph = color_connect.get_scene_color_connect(intergraph, rgb_truncate=rgb_truncate_threshold)
     color_connect_filename = "color_neighbors.pt"
     color_connect_tensor_path = os.path.join(outputpath, color_connect_filename)
     torch.save(color_connect_graph, color_connect_tensor_path)
+
+    print("=" * 25 + "Color Connectivity Graph Saved" + "=" *25)
+
+    print('\n')
+
+    print("=" * 25 + "Establishing Color Clusters Graph" + "=" *25)
 
     color_clusters = get_color_clusters(color_connect_graph)
     color_cluster_filename = "color_clusters.pt"
@@ -134,9 +168,9 @@ if __name__ == "__main__":
 
     else:
         if args.inputpath == None:
-            print("invalid inputpath")
+            print("No inputpath")
         else:
-            print("invalid outputpath")
+            print("No outputpath")
     
     
 
