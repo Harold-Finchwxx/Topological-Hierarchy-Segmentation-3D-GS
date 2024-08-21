@@ -51,6 +51,8 @@ def get_color_clusters(ccgraph: ColorConnectGraph):
     
 def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, intersect_threshold=1e-6, max_neighbor_num=10):
 
+    os.makedirs(outputpath, exist_ok=True)
+
     intergraph = IntersectionGraph(max_neighbor_num=max_neighbor_num)
     intergraph.load_ply(inputpath)
     intergraph.get_connect_graph(threshold=intersect_threshold)
@@ -69,6 +71,7 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
     color_cluster_list_path = os.path.join(outputpath, color_cluster_filename)
     torch.save(color_clusters, color_cluster_list_path)
 
+    '''
     rgb_assign = torch.arange(0, 255*3, 255*3/len(color_clusters))
     rgb_label = torch.zeros((len(color_clusters), 3, 1))
     for idx in range(0, len(color_clusters)):
@@ -80,33 +83,37 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
                 rgb_label[idx] = [[255], [rgb_assign[idx] - 255], [0]]
             else:
                 rgb_label[idx] = [[255], [255], [rgb_assign[idx] - 255*2]]
+    '''
+
+    rgb_label = torch.randint(0, 256, (len(color_clusters), 3, 1))
+    sh_dc_label = RGB2SH(rgb_label)
 
     segment_feature_dc = torch.zeros_like(intergraph._features_dc)
 
     cluster_idx=0
     for cluster in color_clusters:
         for gaussian_idx in cluster:
-            segment_feature_dc[gaussian_idx] = rgb_label[cluster_idx]
+            segment_feature_dc[gaussian_idx] = sh_dc_label[cluster_idx]
 
         cluster_idx+=1
     
-        xyz = intergraph._xyz.detach().cpu().numpy()
-        normals = np.zeros_like(xyz)
-        f_dc = segment_feature_dc.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy() ##
-        f_rest = intergraph._features_rest.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
-        opacities = intergraph._opacity.detach().cpu().numpy()
-        scale = intergraph._scaling.detach().cpu().numpy()
-        rotation = intergraph._rotation.detach().cpu().numpy()
+    xyz = intergraph._xyz.detach().cpu().numpy()
+    normals = np.zeros_like(xyz)
+    f_dc = segment_feature_dc.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy() ##
+    f_rest = intergraph._features_rest.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+    opacities = intergraph._opacity.detach().cpu().numpy()
+    scale = intergraph._scaling.detach().cpu().numpy()
+    rotation = intergraph._rotation.detach().cpu().numpy()
 
-        dtype_full = [(attribute, 'f4') for attribute in intergraph.construct_list_of_attributes()]
+    dtype_full = [(attribute, 'f4') for attribute in intergraph.construct_list_of_attributes()]
 
-        ply_file_name = f"SpaceRGBThresh_{intersect_threshold}_{rgb_truncate_threshold}.ply"
-        ply_file_path = os.path.join(outputpath, ply_file_name)
-        elements = np.empty(xyz.shape[0], dtype=dtype_full)
-        attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale, rotation), axis=1)
-        elements[:] = list(map(tuple, attributes))
-        el = PlyElement.describe(elements, 'vertex')
-        PlyData([el]).write(ply_file_path)
+    ply_file_name = f"SpaceRGBThresh_{intersect_threshold}_{rgb_truncate_threshold}.ply"
+    ply_file_path = os.path.join(outputpath, ply_file_name)
+    elements = np.empty(xyz.shape[0], dtype=dtype_full)
+    attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale, rotation), axis=1)
+    elements[:] = list(map(tuple, attributes))
+    el = PlyElement.describe(elements, 'vertex')
+    PlyData([el]).write(ply_file_path)
 
 
 if __name__ == "__main__":
