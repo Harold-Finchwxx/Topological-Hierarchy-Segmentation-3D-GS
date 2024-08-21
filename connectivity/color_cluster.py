@@ -16,6 +16,7 @@ from connectivity.color_connectivity import ColorConnectGraph
 from argparse import ArgumentParser
 import argparse
 import sys
+import time
 
 '''
 def dfs(graph, node, visited):
@@ -154,7 +155,7 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
 
     dtype_full = [(attribute, 'f4') for attribute in intergraph.construct_list_of_attributes()]
 
-    ply_file_name = f"SpaceRGBThresh_{intersect_threshold}_{rgb_truncate_threshold}.ply"
+    ply_file_name = f"SpaceRGBThresh_{intersect_threshold}_{rgb_truncate_threshold}_maxneighbor_{max_neighbor_num}.ply"
     ply_file_path = os.path.join(outputpath, ply_file_name)
     elements = np.empty(xyz.shape[0], dtype=dtype_full)
     attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale, rotation), axis=1)
@@ -177,7 +178,7 @@ if __name__ == "__main__":
 
     if args.inputpath !=None and args.outputpath !=None :
 
-        save_texture_segment_ply(args.inputpath, args.outputpath, args.RGB_threshold,args.intersect_threshold)
+        save_texture_segment_ply(args.inputpath, args.outputpath, args.RGB_threshold ,args.intersect_threshold, args.max_neighbor_num)
 
     else:
         if args.inputpath == None:
