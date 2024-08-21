@@ -17,11 +17,24 @@ from argparse import ArgumentParser
 import argparse
 import sys
 
+'''
 def dfs(graph, node, visited):
     visited.add(node)
     for neighbor in graph[node, :]:
         if neighbor>=0 and neighbor not in visited:
             dfs(graph, int(neighbor.item()), visited)
+'''
+
+def dfs(graph, start_node, visited):
+    stack = [start_node]  # initiate stack, including start node
+    while stack:
+        node = stack.pop()  # pop top element of the pop
+        if node not in visited:
+            visited.add(node)  # mark current node as visited
+            for neighbor in graph[node, :]:  # go through all neighbors of current node
+                if neighbor >= 0 and neighbor not in visited:
+                    stack.append(int(neighbor.item()))  # push unvisited neighbors into the stack
+
 
 '''
 def find_connected_components(graph) -> list:
