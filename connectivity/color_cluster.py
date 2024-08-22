@@ -17,6 +17,7 @@ from argparse import ArgumentParser
 import argparse
 import sys
 import time
+from tqdm import tqdm
 
 '''
 def dfs(graph, node, visited):
@@ -26,12 +27,13 @@ def dfs(graph, node, visited):
             dfs(graph, int(neighbor.item()), visited)
 '''
 
-def dfs(graph, start_node, visited):
+def dfs(graph, start_node, visited, pbar: tqdm):
     stack = [start_node]  # initiate stack, including start node
     while stack:
         node = stack.pop()  # pop top element of the pop
         if node not in visited:
             visited.add(node)  # mark current node as visited
+            pbar.update(1)
             for neighbor in graph[node, :]:  # go through all neighbors of current node
                 if neighbor >= 0 and neighbor not in visited:
                     stack.append(int(neighbor.item()))  # push unvisited neighbors into the stack
@@ -52,17 +54,24 @@ def find_connected_components(graph) -> list:
     return components
 '''
 
-def get_color_clusters(ccgraph: Tensor) -> list:
+def get_clusters(ccgraph: Tensor) -> list:
     
     visited = set()
     components = []
+
+    print('=' * 25 + 'Geting Clusters' + '=' *25)
     
+    processingbar = tqdm(total=ccgraph.shape[0])
+
     for node in range(0, ccgraph.shape[0]):
         if node not in visited:
             component = set()
-            dfs(ccgraph, node, component)
+            dfs(ccgraph, node, component, processingbar)
             components.append(component)
             visited.update(component)
+
+    processingbar.close()
+    print('=' * 25 + 'Clusters Got' + '=' *25)
 
     return components
     
@@ -114,7 +123,7 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
 
     print("=" * 25 + "Establishing Color Clusters Graph" + "=" *25)
 
-    color_clusters = get_color_clusters(color_connect_graph)
+    color_clusters = get_clusters(color_connect_graph)
     color_cluster_filename = "color_clusters.pt"
     color_cluster_list_path = os.path.join(outputpath, color_cluster_filename)
     torch.save(color_clusters, color_cluster_list_path)
@@ -186,7 +195,7 @@ if __name__ == "__main__":
         else:
             print("No outputpath")
     
-    
+        raise SystemExit()
 
 
     
