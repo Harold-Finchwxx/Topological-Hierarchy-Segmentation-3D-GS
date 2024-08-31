@@ -27,16 +27,18 @@ def dfs(graph, node, visited):
             dfs(graph, int(neighbor.item()), visited)
 '''
 
-def dfs(graph, start_node, visited, pbar: tqdm):
+def dfs(graph, start_node, cluster_visited, scene_visited, pbar):
     stack = [start_node]  # initiate stack, including start node
     while stack:
         node = stack.pop()  # pop top element of the pop
-        if node not in visited:
-            visited.add(node)  # mark current node as visited
+        if (node not in cluster_visited) and (node not in scene_visited):
+            cluster_visited.add(int(node))  # mark current node as visited
+            scene_visited.add(int(node))
             pbar.update(1)
             for neighbor in graph[node, :]:  # go through all neighbors of current node
-                if neighbor >= 0 and neighbor not in visited:
-                    stack.append(int(neighbor.item()))  # push unvisited neighbors into the stack
+                true_neighbor = int(neighbor.item())
+                if (true_neighbor >= 0) and (true_neighbor not in cluster_visited) and (true_neighbor not in scene_visited):
+                    stack.append(int(true_neighbor))  # push unvisited neighbors into the stack
 
 
 '''
@@ -61,14 +63,15 @@ def get_clusters(ccgraph: Tensor) -> list:
 
     print('=' * 25 + 'Geting Clusters' + '=' *25)
     
-    processingbar = tqdm(total=ccgraph.shape[0])
+    processingbar = tqdm(total=ccgraph.shape[0], desc="Clustering Process")
 
     for node in range(0, ccgraph.shape[0]):
         if node not in visited:
             component = set()
-            dfs(ccgraph, node, component, processingbar)
+            dfs(ccgraph, node, component, visited, processingbar)
             components.append(component)
             visited.update(component)
+            # processingbar.update(len(component))
 
     processingbar.close()
     print('=' * 25 + 'Clusters Got' + '=' *25)

@@ -17,6 +17,7 @@ from argparse import ArgumentParser
 import argparse
 import sys
 import time
+from tqdm import tqdm
 
 '''
 def dfs(graph, node, visited):
@@ -26,15 +27,18 @@ def dfs(graph, node, visited):
             dfs(graph, int(neighbor.item()), visited)
 '''
 
-def dfs(graph, start_node, visited):
+def dfs(graph, start_node, cluster_visited, scene_visited, pbar):
     stack = [start_node]  # initiate stack, including start node
     while stack:
         node = stack.pop()  # pop top element of the pop
-        if node not in visited:
-            visited.add(node)  # mark current node as visited
+        if (node not in cluster_visited) and (node not in scene_visited):
+            cluster_visited.add(int(node))  # mark current node as visited
+            scene_visited.add(int(node))
+            pbar.update(1)
             for neighbor in graph[node, :]:  # go through all neighbors of current node
-                if neighbor >= 0 and neighbor not in visited:
-                    stack.append(int(neighbor.item()))  # push unvisited neighbors into the stack
+                true_neighbor = int(neighbor.item())
+                if (true_neighbor >= 0) and (true_neighbor not in cluster_visited) and (true_neighbor not in scene_visited):
+                    stack.append(int(true_neighbor))  # push unvisited neighbors into the stack
 
 
 '''
@@ -52,17 +56,25 @@ def find_connected_components(graph) -> list:
     return components
 '''
 
-def get_color_clusters(ccgraph: Tensor) -> list:
+def get_clusters(ccgraph: Tensor) -> list:
     
     visited = set()
     components = []
+
+    print('=' * 25 + 'Geting Clusters' + '=' *25)
     
+    processingbar = tqdm(total=ccgraph.shape[0], desc="Clustering Process")
+
     for node in range(0, ccgraph.shape[0]):
         if node not in visited:
             component = set()
-            dfs(ccgraph, node, component)
+            dfs(ccgraph, node, component, visited, processingbar)
             components.append(component)
             visited.update(component)
+            # processingbar.update(len(component))
+
+    processingbar.close()
+    print('=' * 25 + 'Clusters Got' + '=' *25)
 
     return components
     
@@ -92,7 +104,7 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
     intergraph = IntersectionGraph(max_neighbor_num=max_neighbor_num)
     intergraph.load_ply(inputpath)
     intergraph.get_connect_graph(threshold=intersect_threshold)
-    neighbor_tensor_filename = f"space_neighbors_{time.time()}.pt"
+    neighbor_tensor_filename = f"space_neighbors_MaxNeighbor_{max_neighbor_num}.pt"
     space_neighbor_tensor_path = os.path.join(outputpath, neighbor_tensor_filename)
     torch.save(intergraph.K_neighbors,space_neighbor_tensor_path)
 
@@ -104,7 +116,7 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
 
     color_connect = ColorConnectGraph()
     color_connect_graph = color_connect.get_scene_color_connect(intergraph, rgb_truncate=rgb_truncate_threshold)
-    color_connect_filename = f"color_neighbors_{time.time()}.pt"
+    color_connect_filename = f"color_neighbors_MaxNeighbor_{max_neighbor_num}_ColorThreshold_{rgb_truncate_threshold}.pt"
     color_connect_tensor_path = os.path.join(outputpath, color_connect_filename)
     torch.save(color_connect_graph, color_connect_tensor_path)
 
@@ -114,8 +126,8 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
 
     print("=" * 25 + "Establishing Color Clusters Graph" + "=" *25)
 
-    color_clusters = get_color_clusters(color_connect_graph)
-    color_cluster_filename = f"color_clusters_{time.time()}.pt"
+    color_clusters = get_clusters(color_connect_graph)
+    color_cluster_filename = "color_clusters.pt"
     color_cluster_list_path = os.path.join(outputpath, color_cluster_filename)
     torch.save(color_clusters, color_cluster_list_path)
 
@@ -178,7 +190,7 @@ if __name__ == "__main__":
 
     if args.inputpath !=None and args.outputpath !=None :
 
-        save_texture_segment_ply(args.inputpath, args.outputpath, args.RGB_threshold, args.intersect_threshold, args.max_neighbor_num)
+        save_texture_segment_ply(args.inputpath, args.outputpath, args.RGB_threshold ,args.intersect_threshold, args.max_neighbor_num)
 
     else:
         if args.inputpath == None:
@@ -186,8 +198,5 @@ if __name__ == "__main__":
         else:
             print("No outputpath")
     
-    
-
-
-    
+        raise SystemExit()
     
