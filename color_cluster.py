@@ -18,6 +18,7 @@ import argparse
 import sys
 import time
 from tqdm import tqdm
+import random
 
 '''
 def dfs(graph, node, visited):
@@ -78,7 +79,9 @@ def get_clusters(ccgraph: Tensor) -> list:
 
     return components
     
-def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, intersect_threshold=1e-6, max_neighbor_num=10):
+def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, intersect_threshold=1e-6, max_neighbor_num=10,
+                             from_space_connect=False, from_color_connect=False, from_color_cluster=False,
+                             space_connect_graph_path=None, color_connect_graph_path=None, color_clusters_path=None):
     
     print("=" * 25 + "Testing Input and Ouput Path" + "=" *25)
 
@@ -101,12 +104,22 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
 
     print("=" * 25 + "Establishing Space Connectivity Graph" + "=" *25)
 
-    intergraph = IntersectionGraph(max_neighbor_num=max_neighbor_num)
-    intergraph.load_ply(inputpath)
-    intergraph.get_connect_graph(threshold=intersect_threshold)
-    neighbor_tensor_filename = f"space_neighbors_MaxNeighbor_{max_neighbor_num}.pt"
-    space_neighbor_tensor_path = os.path.join(outputpath, neighbor_tensor_filename)
-    torch.save(intergraph.K_neighbors,space_neighbor_tensor_path)
+    if from_space_connect == False:
+        print("Establish Space Connectvity Graph From Scratch")
+        intergraph = IntersectionGraph(max_neighbor_num=max_neighbor_num)
+        intergraph.load_ply(inputpath)
+        intergraph.get_connect_graph(threshold=intersect_threshold)
+        neighbor_tensor_filename = f"space_neighbors_MaxNeighbor_{max_neighbor_num}.pt"
+        space_neighbor_tensor_path = os.path.join(outputpath, neighbor_tensor_filename)
+        torch.save(intergraph.K_neighbors,space_neighbor_tensor_path)
+    else:
+        print("Establish From Existing Space Connectvity Graph")
+        intergraph = IntersectionGraph(max_neighbor_num=max_neighbor_num)
+        intergraph.load_ply(inputpath)
+        if os.path.exists(space_connect_graph_path): 
+            intergraph.K_neighbors = torch.load(space_connect_graph_path)
+        else:
+            raise SystemExit("please input valid space connect graph path")
 
     print("=" * 25 + "Space Connectivity Graph Saved" + "=" *25)
 
@@ -114,11 +127,19 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
 
     print("=" * 25 + "Establishing Color Connectivity Graph" + "=" *25)
 
-    color_connect = ColorConnectGraph()
-    color_connect_graph = color_connect.get_scene_color_connect(intergraph, rgb_truncate=rgb_truncate_threshold)
-    color_connect_filename = f"color_neighbors_MaxNeighbor_{max_neighbor_num}_ColorThreshold_{rgb_truncate_threshold}.pt"
-    color_connect_tensor_path = os.path.join(outputpath, color_connect_filename)
-    torch.save(color_connect_graph, color_connect_tensor_path)
+    if from_color_connect == None:
+        color_connect = ColorConnectGraph()
+        color_connect_graph = color_connect.get_scene_color_connect(intergraph, rgb_truncate=rgb_truncate_threshold)
+        color_connect_filename = f"color_neighbors_MaxNeighbor_{max_neighbor_num}_ColorThreshold_{rgb_truncate_threshold}.pt"
+        color_connect_tensor_path = os.path.join(outputpath, color_connect_filename)
+        torch.save(color_connect_graph, color_connect_tensor_path)
+    else:
+        print("Establish From Existing Color Connectvity Graph")
+        color_connect = ColorConnectGraph()
+        if os.path.exists(color_connect_graph_path):
+            color_connect_graph = torch.load(color_connect_graph_path)
+        else:
+            raise SystemExit("please input valid color connect graph path")
 
     print("=" * 25 + "Color Connectivity Graph Saved" + "=" *25)
 
@@ -126,10 +147,17 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
 
     print("=" * 25 + "Establishing Color Clusters Graph" + "=" *25)
 
-    color_clusters = get_clusters(color_connect_graph)
-    color_cluster_filename = "color_clusters.pt"
-    color_cluster_list_path = os.path.join(outputpath, color_cluster_filename)
-    torch.save(color_clusters, color_cluster_list_path)
+    if from_color_cluster == None:
+        color_clusters = get_clusters(color_connect_graph)
+        color_cluster_filename = "color_clusters.pt"
+        color_cluster_list_path = os.path.join(outputpath, color_cluster_filename)
+        torch.save(color_clusters, color_cluster_list_path)
+    else:
+        print("Establish From Existing Color Clusters")
+        if os.path.exists(color_clusters_path):
+            color_clusters = torch.load(color_clusters_path)
+        else:
+            raise SystemExit("please input valid color clusters path")
 
     '''
     rgb_assign = torch.arange(0, 255*3, 255*3/len(color_clusters))
@@ -144,8 +172,17 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
             else:
                 rgb_label[idx] = [[255], [255], [rgb_assign[idx] - 255*2]]
     '''
-
-    rgb_label = torch.randint(0, 256, (len(color_clusters), 3, 1))
+    rgb_sample_set = [[255, 0, 0],  #red
+                      [0, 255, 0],  #green
+                      [0, 0, 255],  #blue
+                      [0, 255, 255], #cyan
+                      [255, 0, 255]  #purple
+                      ]
+    rgb_label = []
+    for index in range(0, len(color_clusters)):
+        rgb_label.append(random.choice(rgb_sample_set))
+    rgb_label = torch.tensor(rgb_label, dtype=int)
+    ## rgb_label = torch.randint(0, 256, (len(color_clusters), 3, 1))
     sh_dc_label = RGB2SH(rgb_label)
 
     segment_feature_dc = torch.zeros_like(intergraph._features_dc)
@@ -167,7 +204,7 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
 
     dtype_full = [(attribute, 'f4') for attribute in intergraph.construct_list_of_attributes()]
 
-    ply_file_name = f"SpaceRGBThresh_{intersect_threshold}_{rgb_truncate_threshold}_maxneighbor_{max_neighbor_num}.ply"
+    ply_file_name = f"SpaceRGBThresh_{intersect_threshold}_{rgb_truncate_threshold}_maxneighbor_{max_neighbor_num}_{time.time()}.ply"
     ply_file_path = os.path.join(outputpath, ply_file_name)
     elements = np.empty(xyz.shape[0], dtype=dtype_full)
     attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale, rotation), axis=1)
@@ -185,12 +222,20 @@ if __name__ == "__main__":
     parser.add_argument("--intersect_threshold", type=float, default=1e-6, help="metric for determining intersection")
     parser.add_argument("--RGB_threshold", type=int, default=15, help="metric for truncate rgb similarity")
     parser.add_argument("--max_neighbor_num", type=int, default=10, help="the max number of local neighbors")
+    parser.add_argument("--from_existing_space_connectivity_graph", type=bool, default=False, help="whether establish from existing space connectivity graph")
+    parser.add_argument("--from_existing_color_connectivity_graph", type=bool, default=False, help="whether establish from existing color connectivity graph")
+    parser.add_argument("--from_existing_color_clusters", type=bool, default=False, help="whether establish from existing color clusters")
+    parser.add_argument("--space_connect_graph_path", type=str, default=None, help="path to existing space connectivity graph")
+    parser.add_argument("--color_connect_graph_path", type=str, default=None, help="path to existing color connectivity graph")
+    parser.add_argument("--color_clusters_path", type=str, default=None, help="path to existing color clusters")
 
     args = parser.parse_args(sys.argv[1:])
 
     if args.inputpath !=None and args.outputpath !=None :
 
-        save_texture_segment_ply(args.inputpath, args.outputpath, args.RGB_threshold ,args.intersect_threshold, args.max_neighbor_num)
+        save_texture_segment_ply(args.inputpath, args.outputpath, args.RGB_threshold ,args.intersect_threshold, args.max_neighbor_num,
+                                 args.from_existing_space_connectivity_graph, args.from_existing_color_connectivity_graph, args.from_existing_color_clusters,
+                                 args.space_connect_graph_path, args.color_connect_graph_path, args.color_clusters_path)
 
     else:
         if args.inputpath == None:

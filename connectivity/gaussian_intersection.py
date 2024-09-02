@@ -84,6 +84,7 @@ class IntersectionGraph:
         self._rotation = torch.empty(0)
         self.setup_functions()
         self.max_neighbor_num = max_neighbor_num
+        self.K_neighbors = torch.empty(0)
         
 
     def construct_list_of_attributes(self):
@@ -152,7 +153,7 @@ class IntersectionGraph:
         for target_idx in tqdm(range(0, self._xyz.shape[0]), desc="Outter Loop of space intersection"):
             target_xyz = self._xyz[target_idx]
             distance_to_target = torch.norm(self._xyz - target_xyz, dim=1, keepdim=False)
-            space_truncate_mask = (distance_to_target <= torch.exp(self._scaling[target_idx]).max())
+            space_truncate_mask = (distance_to_target <= 2 * torch.exp(self._scaling[target_idx]).max())
             space_candidates = torch.nonzero(space_truncate_mask).squeeze().tolist()
             if isinstance(space_candidates, int):
                 space_candidates = [space_candidates]

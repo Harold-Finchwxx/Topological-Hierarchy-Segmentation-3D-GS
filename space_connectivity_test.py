@@ -54,11 +54,22 @@ def get_scene_space_cluster(space_connect_graph_path=None, origin_gaussian_path=
 
     space_connect_feature_dc = torch.zeros((space_connect_graph.shape[0], 3, 1), dtype=torch.float)
 
+    '''
+    intergraph = IntersectionGraph()
+    intergraph.load_ply(origin_gaussian_path)
+    '''
+
     cluster_idx=0
     for cluster in space_clusters:
         for gaussian_idx in cluster:
             space_connect_feature_dc[gaussian_idx] = sh_dc_label[cluster_idx]
 
+            # show origin render result of the first(probably the largest) cluster rather than assigning certain color
+            '''
+            if cluster_idx == 0:
+                space_connect_feature_dc[gaussian_idx] = intergraph._features_dc[gaussian_idx]  
+            '''
+                
         cluster_idx+=1
 
     intergraph = IntersectionGraph()
