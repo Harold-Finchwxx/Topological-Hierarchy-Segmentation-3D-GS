@@ -116,7 +116,7 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
         print("Establish From Existing Space Connectvity Graph")
         intergraph = IntersectionGraph(max_neighbor_num=max_neighbor_num)
         intergraph.load_ply(inputpath)
-        if os.path.exists(space_connect_graph_path): 
+        if os.path.exists(str(space_connect_graph_path)): 
             intergraph.K_neighbors = torch.load(space_connect_graph_path)
         else:
             raise SystemExit("please input valid space connect graph path")
@@ -127,7 +127,7 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
 
     print("=" * 25 + "Establishing Color Connectivity Graph" + "=" *25)
 
-    if from_color_connect == None:
+    if from_color_connect == False:
         color_connect = ColorConnectGraph()
         color_connect_graph = color_connect.get_scene_color_connect(intergraph, rgb_truncate=rgb_truncate_threshold)
         color_connect_filename = f"color_neighbors_MaxNeighbor_{max_neighbor_num}_ColorThreshold_{rgb_truncate_threshold}.pt"
@@ -136,7 +136,7 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
     else:
         print("Establish From Existing Color Connectvity Graph")
         color_connect = ColorConnectGraph()
-        if os.path.exists(color_connect_graph_path):
+        if os.path.exists(str(color_connect_graph_path)):
             color_connect_graph = torch.load(color_connect_graph_path)
         else:
             raise SystemExit("please input valid color connect graph path")
@@ -147,17 +147,19 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
 
     print("=" * 25 + "Establishing Color Clusters Graph" + "=" *25)
 
-    if from_color_cluster == None:
+    if from_color_cluster == False:
         color_clusters = get_clusters(color_connect_graph)
-        color_cluster_filename = "color_clusters.pt"
+        color_cluster_filename = f"color_clusters_maxneighbor_{max_neighbor_num}_rgbthreshold_{rgb_truncate_threshold}.pt"
         color_cluster_list_path = os.path.join(outputpath, color_cluster_filename)
         torch.save(color_clusters, color_cluster_list_path)
     else:
         print("Establish From Existing Color Clusters")
-        if os.path.exists(color_clusters_path):
+        if os.path.exists(str(color_clusters_path)):
             color_clusters = torch.load(color_clusters_path)
         else:
             raise SystemExit("please input valid color clusters path")
+        
+    print("=" * 25 + "Color Clusters Graph Established" + "=" *25)
 
     '''
     rgb_assign = torch.arange(0, 255*3, 255*3/len(color_clusters))
@@ -172,16 +174,21 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
             else:
                 rgb_label[idx] = [[255], [255], [rgb_assign[idx] - 255*2]]
     '''
+    print("\n")
+
+    print("=" * 25 + "Assigning Color to Clusters" + "=" *25)
+
     rgb_sample_set = [[255, 0, 0],  #red
                       [0, 255, 0],  #green
                       [0, 0, 255],  #blue
                       [0, 255, 255], #cyan
                       [255, 0, 255]  #purple
-                      ]
+                      ] 
     rgb_label = []
     for index in range(0, len(color_clusters)):
         rgb_label.append(random.choice(rgb_sample_set))
     rgb_label = torch.tensor(rgb_label, dtype=int)
+    rgb_label = torch.unsqueeze(rgb_label, dim=-1)
     ## rgb_label = torch.randint(0, 256, (len(color_clusters), 3, 1))
     sh_dc_label = RGB2SH(rgb_label)
 
@@ -193,6 +200,12 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
             segment_feature_dc[gaussian_idx] = sh_dc_label[cluster_idx]
 
         cluster_idx+=1
+    
+    print("=" * 25 + "Color Assigned" + "=" *25)
+
+    print("\n")
+
+    print("=" * 25 + "Saving Final Results" + "=" *25)
     
     xyz = intergraph._xyz.detach().cpu().numpy()
     normals = np.zeros_like(xyz)
@@ -212,6 +225,8 @@ def save_texture_segment_ply(inputpath, outputpath, rgb_truncate_threshold=15, i
     el = PlyElement.describe(elements, 'vertex')
     PlyData([el]).write(ply_file_path)
 
+    print("=" * 25 + "Final Results Saved" + "=" *25)
+
 
 if __name__ == "__main__":
 
@@ -220,7 +235,7 @@ if __name__ == "__main__":
     parser.add_argument("-input","--inputpath", type=str, default=None, help="path to 3D GS ply file")
     parser.add_argument("-output","--outputpath", type=str, default=None, help="path to where the segment result will output")
     parser.add_argument("--intersect_threshold", type=float, default=1e-6, help="metric for determining intersection")
-    parser.add_argument("--RGB_threshold", type=int, default=15, help="metric for truncate rgb similarity")
+    parser.add_argument("--RGB_threshold", type=float, default=15, help="metric for truncate rgb similarity")
     parser.add_argument("--max_neighbor_num", type=int, default=10, help="the max number of local neighbors")
     parser.add_argument("--from_existing_space_connectivity_graph", type=bool, default=False, help="whether establish from existing space connectivity graph")
     parser.add_argument("--from_existing_color_connectivity_graph", type=bool, default=False, help="whether establish from existing color connectivity graph")
