@@ -31,7 +31,7 @@ def imshow(tensor, title=None):
         plt.show()
 
 
-def get_dinov2_feature(imgs_path:str, img_size:list):
+def get_dinov2_feature(imgs_path:str, img_size:list ,save_feature:bool=False, feature_save_path:str=None):
 
     print('=' * 25 + 'DINOv2 Features Getting' + '=' * 25)
 
@@ -94,7 +94,20 @@ def get_dinov2_feature(imgs_path:str, img_size:list):
     # Compute PCA between the patches of the image
     features = features.reshape(batch_size, patchs_h, patchs_w, 1536)
 
-    print('=' * 25 + 'DINOv2 Features Getting' + '=' * 25)
+    print('=' * 25 + 'DINOv2 Features Got' + '=' * 25)
+
+    if save_feature == True:
+        print('=' * 25 + 'DINOv2 Features Saving' + '=' * 25)
+        if os.path.exits(feature_save_path):
+            i = 0
+            for image_name in image_files:
+                name_list = image_name.split('.')
+                name_idex = name_list[0]
+                save_path = os.path.join(feature_save_path, name_idex+".pt")
+                torch.save(features[i], save_path)
+        else:
+            raise SystemExit("Feature Save Path Does Not Exit")
+
 
     return features
 
