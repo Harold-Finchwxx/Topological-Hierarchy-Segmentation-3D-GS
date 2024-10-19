@@ -85,6 +85,7 @@ class IntersectionGraph:
         self.setup_functions()
         self.max_neighbor_num = max_neighbor_num
         self.K_neighbors = torch.empty(0)
+        self._neighbors = []
         
 
     def construct_list_of_attributes(self):
@@ -146,11 +147,54 @@ class IntersectionGraph:
         self.active_sh_degree = self.max_sh_degree
 
     def get_connect_graph(self, threshold=1e-6):
-        K_neighbors = np.full((self._xyz.shape[0], self.max_neighbor_num), np.nan, dtype=int)
+        # K_neighbors = np.full((self._xyz.shape[0], self.max_neighbor_num), np.nan, dtype=int)
+        Neighbors = []
         max_scale = torch.exp(get_max_scale(self._scaling))
         scaling = torch.exp(self._scaling)
 
+        # Get sorted coordinates
+        x = self._xyz[:, 0].clone().squeeze().cuda()
+        y = self._xyz[:, 1].clone().squeeze().cuda()
+        z = self._xyz[:, 2].clone().squeeze().cuda()
+
+        x_sorted, x_indices = torch.sort(x)
+        y_sorted, y_indices = torch.sort(y)
+        z_sorted, z_indices = torch.sort(z)
+
+        x_sorted_with_origin_indices = torch.stack((x_sorted, x_indices), dim=1)
+        y_sorted_with_origin_indices = torch.stack((y_sorted, y_indices), dim=1)
+        z_sorted_with_origin_indices = torch.stack((z_sorted, z_indices), dim=1)
+
         for target_idx in tqdm(range(0, self._xyz.shape[0]), desc="Outter Loop of space intersection"):
+
+            # Set the truncate boundary based on coordinate 
+            truncate_distance_xyz = torch.full((3, ), max_scale * 1.75)
+            target_xyz = self._xyz[target_idx].cuda()
+            truncate_coordinate = torch.stack((target_xyz.squeeze() - truncate_distance_xyz, 
+                                               target_xyz.squeeze() + truncate_distance_xyz), dim=0).cuda()
+            
+            x_bound_index = torch.searchsorted(x_sorted, truncate_coordinate[:, 0].squeeze())
+            y_bound_index = torch.searchsorted(y_sorted, truncate_coordinate[:, 1].squeeze())
+            z_bound_index = torch.searchsorted(z_sorted, truncate_coordinate[:, 2].squeeze())
+
+            # Get original indices for truncated candiadates
+            x_candidates = x_sorted_with_origin_indices[x_bound_index[0]: x_bound_index[1], 1].squeeze()
+            y_candidates = y_sorted_with_origin_indices[y_bound_index[0]: y_bound_index[1], 1].squeeze()
+            z_candidates = z_sorted_with_origin_indices[z_bound_index[0]: z_bound_index[1], 1].squeeze()
+
+            xyz_candidates = torch.cat((x_candidates, y_candidates, z_candidates), dim=0).cuda()
+            unique_elements, counts = torch.unique(xyz_candidates, return_counts=True)
+            candidates_id = unique_elements[counts == 3]
+
+            # Secondary filter by space distance
+            distance_to_target = torch.norm(self._xyz[candidates_id, :] - target_xyz, dim=1, keepdim=False)
+            neighbors_mask = (distance_to_target < 2 * scaling[target_idx].max())
+            neighbors = torch.tensor(candidates_id[neighbors_mask], dtype=int).squeeze().tolist()
+            neighbors.remove(target_idx)
+
+            Neighbors.append(neighbors)
+
+            '''
             target_xyz = self._xyz[target_idx]
             distance_to_target = torch.norm(self._xyz - target_xyz, dim=1, keepdim=False)
             space_truncate_mask = (distance_to_target <= 2 * torch.exp(self._scaling[target_idx]).max())
@@ -158,6 +202,8 @@ class IntersectionGraph:
             if isinstance(space_candidates, int):
                 space_candidates = [space_candidates]
             space_candidates.remove(target_idx)
+            '''
+
             '''
             target_sigma = build_covariance_from_scaling_rotation(scaling[target_idx], self._rotation[target_idx])
             intersec_candidates = []
@@ -175,14 +221,19 @@ class IntersectionGraph:
                 intersec_candidates.sort(key=lambda x: x[1], reverse=True)
                 K_neighbors[target_idx] = [c[0] for c in intersec_candidates[:self.max_neighbor_num]]
             '''
+
+            '''
             if len(space_candidates) <= self.max_neighbor_num:
                 K_neighbors[target_idx][:len(space_candidates)] = [c for c in space_candidates]
             else:
                 space_candidates.sort(key=lambda x: distance_to_target[x])
                 K_neighbors[target_idx] = [c for c in space_candidates[:self.max_neighbor_num]]
+            '''
 
-        self.K_neighbors = torch.tensor(K_neighbors, dtype=int)
-        return K_neighbors
+        # self.K_neighbors = torch.tensor(K_neighbors, dtype=int)
+        # return K_neighbors
+        self._neighbors = Neighbors
+        return Neighbors
 
 
 
