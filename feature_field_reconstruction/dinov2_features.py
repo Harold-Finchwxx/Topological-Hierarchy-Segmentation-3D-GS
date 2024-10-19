@@ -98,10 +98,10 @@ def get_dinov2_feature(imgs_path:str, img_size:list ,save_feature:bool=False, fe
                 with torch.no_grad():
                     features_dict = dinov2_vitg14.forward_features(imgs_tensor)
                     features = features_dict['x_norm_patchtokens']
-                features = features.reshape(patchs_h, patchs_w, feature_dim)
+                features = features.reshape(feature_dim, patchs_h, patchs_w)
                 
                 # save feature
-                save_path = os.path.join(feature_save_path, name_idex + "_feature.pt")
+                save_path = os.path.join(feature_save_path, name_idex + "_fmap_CxHxW.pt")
                 torch.save(features, save_path)
                 i = i + 1
         else:
